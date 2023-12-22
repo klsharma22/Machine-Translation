@@ -10,3 +10,4 @@ sentence-transformers
 tensorflow
 pyarrow
 tensorflow
+tensorflow_text
