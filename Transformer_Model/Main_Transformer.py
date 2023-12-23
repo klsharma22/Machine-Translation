@@ -128,9 +128,11 @@ class Transformer(nn.Module):
         print('-------------------------------ENCODER COMPLETED-----------------------------------------------------','\n\n\n')
         print('-------------------------------DECODER ACTIVATED----------------------------------------------------','\n\n')
         decoder_output = self.decoder(encoder_output, y, mask)
-        return decoder_output
         #print('decoder output : ',decoder_output)
         print('--------------------------------DECODER COMPLETED---------------------------------------------------','\n\n\n')
+        return decoder_output
+        
+        
 
 d_model = 128
 num_heads = 8

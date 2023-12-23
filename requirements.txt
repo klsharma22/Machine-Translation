@@ -8,6 +8,4 @@ scikit-learn
 pandas
 sentence-transformers
 pyarrow
-tensorflow == 2.10.0
-tensorflow-intel == 2.10.0
-tensorflow_text
+tensorflow 
