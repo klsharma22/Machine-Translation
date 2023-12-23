@@ -89,7 +89,9 @@ class PositionwiseFeedForward(nn.Module):
         print(f"x feed forward network: {x.size()}")
         return x
 
-
+from attention import MultiHeadAttention,MultiHeadCrossAttention
+from layer_normalization import LayerNormalization
+from feed_forward import PositionwiseFeedForward
 class EncoderLayer(nn.Module):
 
     def __init__(self, d_model, ffn_hidden, num_heads, drop_prob,i):
