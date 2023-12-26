@@ -63,12 +63,12 @@ class TransformerBlock(nn.Module):
     
 class Encoder(nn.Module):
     def __init__(self, src_vocab_size, embed_size, num_layers, heads,
-                forward_expansio, dropout, max_lenght, device = None):
+                forward_expansio, dropout, max_length, device = None):
         super(Encoder, self).__init__()
         self.embed_size = embed_size
         self.device = device
         self.word_embedding = nn.Embedding(src_vocab_size, embed_size)
-        self.position_embedding = nn.Embedding(max_lenght, embed_size)
+        self.position_embedding = nn.Embedding(max_length, embed_size)
 
         self.layers = nn.ModuleList(
             [
@@ -113,11 +113,11 @@ class DecoderBlock(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(self, trg_vocab_size, embed_size, num_layers, heads, 
-                 forward_expansion, dropout, max_lenght, device = None):
+                 forward_expansion, dropout, max_length, device = None):
         super(Decoder, self).__init__()
         self.device = device
         self.word_embedding = nn.Embedding(trg_vocab_size, embed_size)
-        self.position_embedding = nn.Embedding(max_lenght, embed_size)
+        self.position_embedding = nn.Embedding(max_length, embed_size)
 
         self.layers = nn.ModuleList(
             [
@@ -145,8 +145,44 @@ class Decoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx,
+                 embed_size = 256, num_layers= 6, forward_expansion= 4, heads= 8, 
+                 dropout= 0, device= None, max_length= 100) -> None:
+        super(Transformer, self).__init__()
 
+        self.encoder = Encoder(src_vocab_size, embed_size, num_layers, heads, 
+                               forward_expansion, dropout, max_length, device)
+        self.decoder = Decoder(trg_vocab_size, embed_size, num_layers, heads, 
+                               forward_expansion, dropout, max_length, device)
+        
+        self.src_pad_idx = src_pad_idx
+        self.trg_pad_idx = trg_pad_idx
+        self.device = device
 
+    def make_src_mask(self, src):
+        src_mask = (src != self.src_pad_idx).unsqueeze(1).unsqueeze(2)
 
+        if self.device:
+            return src_mask.to(self.device)
+        else:
+            return src_mask
+        
+    def make_trg_mask(self, trg):
+        N, trg_len = trg.shape
+        trg_mask = torch.tril(torch.ones((trg_len, trg_len))).expand(
+            N, 1, trg_len, trg_len
+        )
+
+        if self.device:
+            return trg_mask.to(self.device)
+        else:
+            return trg_mask
+        
+    def forward(self, src, trg):
+        src_mask = self.make_src_mask(src)
+        trg_mask = self.make_trg_mask(trg)
+
+        enc_src = self.encoder(src, src_mask)
+        out = self.decoder(trg, enc_src, src_mask, trg_mask)
+
+        return out
