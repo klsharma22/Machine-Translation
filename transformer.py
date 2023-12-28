@@ -466,8 +466,30 @@ class Transformer(nn.Module):
 
 #x = torch.randn( (size, max_sequence_length, d_model) ) # input positional encoded
 #y = torch.randn( (size, max_sequence_length, d_model) ) # output sentence positional encoded 
-#x = ["I'm really in a bind","I'm really surprised"]
-#y = ['Je suis vraiment dans le pétrin','Je suis très étonné.']
-#mask = torch.full([max_sequence_length, max_sequence_length] , float('-inf'))
-#mask = torch.triu(mask, diagonal=1) # Mask initialization for masked attention
+    
+
+
+d_model = 128
+num_heads = 8
+drop_prob = 0.1
+batch_size = 30
+max_sequence_length = 104
+ffn_hidden = 2048
+num_layers_encoder = 1
+num_layers_decoder = 1
+transformer = Transformer(d_model = 128,
+                    ffn_hidden = 256,
+                    num_heads = 8,
+                    drop_prob = 0.1,
+                    max_sequence_length = 104,
+                    num_layers_encoder = 2,
+                    num_layers_decoder = 1,
+                    batch_size=1
+                    )
+
+x = ["I'm really in a bind","I'm really surprised"]
+y = ['Je suis vraiment dans le pétrin','Je suis très étonné.']
+mask = torch.full([max_sequence_length, max_sequence_length] , float('-inf'))
+mask = torch.triu(mask, diagonal=1) # Mask initialization for masked attention
+out = transformer(x,y,mask)
 
