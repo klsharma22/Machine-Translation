@@ -5,6 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from transformers import BertTokenizer, BertModel,AutoTokenizer, AutoModel
+# torch.cuda.init()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_device():
@@ -95,12 +96,12 @@ class Embedding(nn.Module):
         batch_padded_tokens = [tokens + [self.tokenizer.pad_token_id] * (self.max_len - len(tokens))
                             for tokens in batch_tokens]
 
-        tokens_tensor = torch.tensor(batch_padded_tokens).to(device=device)
+        tokens_tensor = torch.tensor(batch_padded_tokens).to(device)
         with torch.no_grad():
             output = self.embedding_model(tokens_tensor)
             embeddings = output.last_hidden_state
             embeddings=embeddings.to(device)
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
             self.embedding_model
 
         return embeddings
@@ -238,8 +239,6 @@ class EncoderLayer(nn.Module):
         self.i_th_encoder = i+1
 
     def forward(self, x, self_attention_mask):
-        device = torch.device(device)
-
         print(f'------ ENCODER LAYER NUMBER {self.i_th_encoder}----------')
         residual_x = x.clone()
         print("ATTENTION 1",)
@@ -299,7 +298,7 @@ class Encoder(nn.Module):
 
     def forward(self, x, self_attention_mask):
         x = self.sentence_embedding.forward(x)
-        print('MEMORY USAGE AFTER ENCODING','\n',torch.cuda.memory_summary())
+        print('MEMORY USAGE AFTER ENCODING','\n')
         for i in range(self.num_layers):
             x = self.encoder(x, self_attention_mask)
             x = x.to(device = 'cpu')
@@ -450,12 +449,12 @@ class Transformer(nn.Module):
         print('ENCODER ACTIVATED')
         x = self.encoder(x, encoder_self_attention_mask)
         print('ENCODER COMPLETED')
-        print('MEMORY AFTER ENCODER ACTION','\n',(torch.cuda.memory_summary(abbreviated=True)))
+        print('MEMORY AFTER ENCODER ACTION','\n')
         print('DECODER ACTIVATED')
         out = self.decoder(x, y, decoder_self_attention_mask, decoder_cross_attention_mask)
         out = self.linear(out)
         print('DECODER COMPLETED')
-        print('MEMORY AFTER DECODER ACTION','\n',(torch.cuda.memory_summary(abbreviated=True)))
+        print('MEMORY AFTER DECODER ACTION','\n')
         return out
 
 
@@ -464,28 +463,28 @@ class Transformer(nn.Module):
     
 
 
-d_model = 128
-num_heads = 8
-drop_prob = 0.1
-batch_size = 30
-max_sequence_length = 104
-ffn_hidden = 2048
-num_layers_encoder = 1
-num_layers_decoder = 1
-transformer = Transformer(d_model = 128,
-                    ffn_hidden = 256,
-                    num_heads = 8,
-                    drop_prob = 0.1,
-                    max_sequence_length = 104,
-                    num_layers_encoder = 2,
-                    num_layers_decoder = 1,
-                    batch_size=1
-                    )
+# d_model = 128
+# num_heads = 8
+# drop_prob = 0.1
+# batch_size = 30
+# max_sequence_length = 104
+# ffn_hidden = 2048
+# num_layers_encoder = 1
+# num_layers_decoder = 1
+# transformer = Transformer(d_model = 128,
+#                     ffn_hidden = 256,
+#                     num_heads = 8,
+#                     drop_prob = 0.1,
+#                     max_sequence_length = 104,
+#                     num_layers_encoder = 2,
+#                     num_layers_decoder = 1,
+#                     batch_size=1
+#                     )
 
 # x = ["I'm really in a bind","I'm really surprised"]
 # y = ['Je suis vraiment dans le pétrin','Je suis très étonné.']
 # mask = torch.full([max_sequence_length, max_sequence_length] , float('-inf'))
 # mask = torch.triu(mask, diagonal=1) # Mask initialization for masked attention
-# print(torch.cuda.memory_summary())
+# # print(torch.cuda.memory_summary())
 # out = transformer(x,y,mask)
 
