@@ -24,6 +24,10 @@ class SelfAttention(nn.Module):
         keys = keys.reshape(N, key_len, self.heads, self.heads_dim)
         queries = query.reshape(N, query_len, self.heads, self.heads_dim)
 
+        values = self.values(values)
+        keys = self.keys(keys)
+        queries = self.queries(queries)
+
         energy = torch.einsum('nqhd,nkhd->nhqk', [queries, keys])
 
         if mask is not None:
@@ -37,7 +41,7 @@ class SelfAttention(nn.Module):
         return out
     
 class TransformerBlock(nn.Module):
-    def __init__(self, embeded_size, heads, dropout, forward_expansion):
+    def __init__(self, embeded_size, heads, dropout, forward_expansionn):
         super(TransformerBlock, self).__init__()
         self.attention = SelfAttention(embeded_size, heads)
 
@@ -45,9 +49,9 @@ class TransformerBlock(nn.Module):
         self.norm2 = nn.LayerNorm(embeded_size)
 
         self.feed_forward = nn.Sequential(
-            nn.Linear(embeded_size, embeded_size*forward_expansion),
+            nn.Linear(embeded_size, embeded_size*forward_expansionn),
             nn.ReLU(),
-            nn.Linear(embeded_size*forward_expansion, embeded_size)
+            nn.Linear(embeded_size*forward_expansionn, embeded_size)
         )
 
         self.dropout = nn.Dropout(dropout)
@@ -63,7 +67,7 @@ class TransformerBlock(nn.Module):
     
 class Encoder(nn.Module):
     def __init__(self, src_vocab_size, embed_size, num_layers, heads,
-                forward_expansio, dropout, max_length, device = None):
+                forward_expansion, dropout, max_length, device = None):
         super(Encoder, self).__init__()
         self.embed_size = embed_size
         self.device = device
@@ -72,7 +76,8 @@ class Encoder(nn.Module):
 
         self.layers = nn.ModuleList(
             [
-                TransformerBlock(embed_size, heads, dropout, forward_expansio)
+                TransformerBlock(embed_size, heads, dropout, forward_expansion)
+                for _ in range(num_layers)
             ]
         )
 
@@ -93,13 +98,13 @@ class Encoder(nn.Module):
         return out
     
 class DecoderBlock(nn.Module):
-    def __init__(self, embed_size, heads, forward_expansion, dropout, device= None):
+    def __init__(self, embed_size, heads, forward_expansionn, dropout, device= None):
         super(DecoderBlock, self).__init__()
 
         self.attention = SelfAttention(embed_size, heads)
         self.norm = nn.LayerNorm(embed_size)
         self.transformer_block = TransformerBlock(
-            embed_size, heads, dropout, forward_expansion
+            embed_size, heads, dropout, forward_expansionn
         )
         self.dropout = nn.Dropout(dropout)
 
@@ -113,7 +118,7 @@ class DecoderBlock(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(self, trg_vocab_size, embed_size, num_layers, heads, 
-                 forward_expansion, dropout, max_length, device = None):
+                 forward_expansionn, dropout, max_length, device = None):
         super(Decoder, self).__init__()
         self.device = device
         self.word_embedding = nn.Embedding(trg_vocab_size, embed_size)
@@ -121,7 +126,7 @@ class Decoder(nn.Module):
 
         self.layers = nn.ModuleList(
             [
-                DecoderBlock(embed_size, heads, forward_expansion, dropout, device)
+                DecoderBlock(embed_size, heads, forward_expansionn, dropout, device)
                 for _ in range(num_layers)
             ]
         )
@@ -143,17 +148,19 @@ class Decoder(nn.Module):
 
         out = self.fc_out(x)
 
+        return out
+
 
 class Transformer(nn.Module):
     def __init__(self, src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx,
-                 embed_size = 256, num_layers= 6, forward_expansion= 4, heads= 8, 
+                 embed_size = 256, num_layers= 6, forward_expansionn= 4, heads= 8, 
                  dropout= 0, device= None, max_length= 100) -> None:
         super(Transformer, self).__init__()
 
         self.encoder = Encoder(src_vocab_size, embed_size, num_layers, heads, 
-                               forward_expansion, dropout, max_length, device)
+                               forward_expansionn, dropout, max_length, device)
         self.decoder = Decoder(trg_vocab_size, embed_size, num_layers, heads, 
-                               forward_expansion, dropout, max_length, device)
+                               forward_expansionn, dropout, max_length, device)
         
         self.src_pad_idx = src_pad_idx
         self.trg_pad_idx = trg_pad_idx
