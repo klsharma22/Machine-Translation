@@ -86,9 +86,9 @@ class Encoder(nn.Module):
     def forward(self, x, mask):
         N, seq_len = x.shape
         if self.device:
-            position = torch.arrange(0, seq_len).expand(N, seq_len).to(self.device)
+            position = torch.arange(seq_len, device=self.device).expand(N, seq_len)
         else:
-            position = torch.arrange(0, seq_len).expand(N, seq_len)
+            position = torch.arange(seq_len).expand(N, seq_len)
 
         out = self.dropout(self.word_embedding(x) + self.position_embedding(position))
 
@@ -137,9 +137,9 @@ class Decoder(nn.Module):
     def forward(self, x, enc_out, src_mask, trg_mask):
         N, seq_len = x.shape
         if self.device:
-            position = nn.arrange(0, seq_len).expand(N, seq_len).to(self.device)
+            position = torch.arange(seq_len).expand(N, seq_len).to(self.device)
         else:
-            position = nn.arrange(0, seq_len).expand(N, seq_len)
+            position = torch.arange(seq_len).expand(N, seq_len)
 
         x = self.dropout(self.word_embedding(x) + self.position_embedding(position))
 
@@ -193,3 +193,22 @@ class Transformer(nn.Module):
         out = self.decoder(trg, enc_src, src_mask, trg_mask)
 
         return out
+
+
+# src_vocab_size = 10
+# trg_vocab_size = 10
+# src_pad_idx = 0
+# trg_pad_idx = 0
+
+# transformer_model = Transformer(src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx)
+
+device = torch. device("cuda" if torch.cuda.is_available() else "cpu")
+x = torch.tensor([[1, 5, 6, 4, 3, 9, 5, 2, 0], [1, 8, 7, 3, 4, 5, 6, 7, 2]]).to(device)
+trg = torch.tensor([[1, 7, 4, 3, 5, 9, 2, 0], [1, 5, 6, 2, 4, 7, 6, 2]]).to(device)
+src_pad_idx = 0
+trg_pad_idx = 0
+src_vocab_size = 10
+trg_vocab_size = 10
+model = Transformer(src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx).to(device)
+out = model(x, trg)
+print(out)
