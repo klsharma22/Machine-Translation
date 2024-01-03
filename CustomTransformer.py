@@ -164,6 +164,7 @@ class Transformer(nn.Module):
         
         self.src_pad_idx = src_pad_idx
         self.trg_pad_idx = trg_pad_idx
+        self.softmax_fc = nn.Softmax()
         self.device = device
 
     def make_src_mask(self, src):
@@ -191,6 +192,7 @@ class Transformer(nn.Module):
 
         enc_src = self.encoder(src, src_mask)
         out = self.decoder(trg, enc_src, src_mask, trg_mask)
+        self.softmax_fc(out)
 
         return out
 
@@ -202,13 +204,13 @@ class Transformer(nn.Module):
 
 # transformer_model = Transformer(src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx)
 
-device = torch. device("cuda" if torch.cuda.is_available() else "cpu")
-x = torch.tensor([[]]).to(device)
-trg = torch.tensor([[]]).to(device)
-src_pad_idx = 0
-trg_pad_idx = 0
-src_vocab_size = 500
-trg_vocab_size = 500
-model = Transformer(src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx).to(device)
-out = model(x, trg)
-print(out)
+# device = torch. device("cuda" if torch.cuda.is_available() else "cpu")
+# x = torch.tensor([[101, 2175, 102]]).to(device)
+# trg = torch.tensor([[101, 12436, 102]]).to(device)
+# src_pad_idx = 0
+# trg_pad_idx = 0
+# src_vocab_size = 30522
+# trg_vocab_size = 30522
+# model = Transformer(src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx).to(device)
+# out = model(x, trg)
+# print(out)
