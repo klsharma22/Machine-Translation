@@ -5,15 +5,17 @@ from torch import nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from transformers import BertTokenizer, BertModel,AutoTokenizer, AutoModel
+# torch.cuda.init()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_device():
-    return torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+    return torch.device(device)
 
 def scaled_dot_product(q, k, v, mask=None):
     # q: 30 x 8 x 200 x 64, k: 30 x 8 x 200 x 64, v: 30 x 8 x 200 x 64, mask 200 x 200
     d_k = q.size()[-1] 
 
-    scaled = torch.matmul(q, k.transpose(-1, -2)).to(device='cuda:0') / math.sqrt(d_k) # 30 x 8 x 200 x 200
+    scaled = torch.matmul(q, k.transpose(-1, -2)).to(device) / math.sqrt(d_k) # 30 x 8 x 200 x 200
     scaled = scaled.to(device='cpu')
     torch.cuda.empty_cache()
     print(f"scaled.size() : {scaled.size()}")
@@ -22,12 +24,12 @@ def scaled_dot_product(q, k, v, mask=None):
         print(f"-- ADDING MASK of shape {mask.size()} --") 
         scaled += mask # 30 x 8 x 200 x 200
 
-    attention = F.softmax(scaled, dim=-1).to(device='cuda:0')
-    attention = attention.to(device='cpu')
+    attention = F.softmax(scaled, dim=-1).to(device)
+    attention = attention.to(device)
     torch.cuda.empty_cache()
 
      # 30 x 8 x 200 x 200
-    values = torch.matmul(attention.to(device='cuda:0'), v.to(device='cuda:0')).to(device='cuda:0') # 30 x 8 x 200 x 64
+    values = torch.matmul(attention.to(device), v.to(device)).to(device) # 30 x 8 x 200 x 64
     print('values in ', values.device)
     attention = attention.to(device='cpu')
     values=values.to('cpu')
@@ -42,9 +44,6 @@ class PositionalEncoding(nn.Module):
         self.batch_size = batch_size
     
     def positional_encoding(self,embeddings):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
         records,max_sequence_length,d_model = embeddings.size()
 
         even_i = torch.arange(0 , d_model , 2).float()
@@ -84,7 +83,6 @@ class Embedding(nn.Module):
 
 
     def text_embedding(self,batch_tokens):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.embedding_model = self.embedding_model.to(device=device)
 
         # Reduce the batch size if the input is too large for GPU memory
@@ -98,24 +96,23 @@ class Embedding(nn.Module):
         batch_padded_tokens = [tokens + [self.tokenizer.pad_token_id] * (self.max_len - len(tokens))
                             for tokens in batch_tokens]
 
-        tokens_tensor = torch.tensor(batch_padded_tokens).to(device=device)
+        tokens_tensor = torch.tensor(batch_padded_tokens).to(device)
         with torch.no_grad():
             output = self.embedding_model(tokens_tensor)
             embeddings = output.last_hidden_state
-            embeddings=embeddings.to('cpu')
-            torch.cuda.empty_cache()
+            embeddings=embeddings.to(device)
+            # torch.cuda.empty_cache()
             self.embedding_model
 
         return embeddings
     
 
     def get_embeddings(self,tokens):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         embedding_trans = []
         for i in tqdm(range(0, len(tokens), self.batch_size), "Embedding", colour= "green"):
             batch_token = tokens[i : i+self.batch_size]
             embedding_trans.extend(self.text_embedding(batch_token))
-        embedding_trans = torch.stack(embedding_trans).to(device=device)
+        embedding_trans = torch.stack(embedding_trans).to(device)
         embedding_trans = embedding_trans.to(device='cpu')
         torch.cuda.empty_cache()
         return embedding_trans
@@ -133,7 +130,6 @@ class SentenceEmbedding(nn.Module):
     
 
     def tokenize(self,sentence):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         tokens = [self.tokenizer.encode(text,add_special_tokens = True,padding='max_length',max_length=self.max_sequence_length) for text in sentence]
         return tokens
     
@@ -159,7 +155,7 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x, mask=None):
         batch_size, sequence_length, d_model = x.size() # 30 x 200 x 512 
         #print(f"x.size(): {x.size()}")
-        qkv = self.qkv_layer(x.to(device='cuda:0'))
+        qkv = self.qkv_layer(x.to(device))
         qkv = qkv.to(device='cpu')
         torch.cuda.empty_cache() 
         print('qkv in',qkv.device)
@@ -185,7 +181,7 @@ class MultiHeadAttention(nn.Module):
         #print(f"values: {values.size()}, attention:{attention.size()}")
         values = values.reshape(batch_size, sequence_length, self.num_heads * self.head_dim) # 30 x 200 x 512
         #print(f"values after reshaping: {values.size()}")
-        out = self.linear_layer(values.to(device='cuda:0')) # 30 x 200 x 512
+        out = self.linear_layer(values.to(device)) # 30 x 200 x 512
         out = out.to(device='cpu')
         torch.cuda.empty_cache()
         print(f"Multi headed hattention done , size=: {out.size()}",'\n')
@@ -197,10 +193,10 @@ class LayerNormalization(nn.Module):
     def __init__(self, parameters_shape):
         super().__init__()
         self.parameters_shape=parameters_shape
-        self.norm = nn.LayerNorm(self.parameters_shape).to(device='cuda:0')
+        self.norm = nn.LayerNorm(self.parameters_shape).to(device)
 
     def forward(self, inputs):
-        inputs = inputs.to(device='cuda:0')
+        inputs = inputs.to(device)
         out = self.norm(inputs)
         out = out.to(device='cpu')
         torch.cuda.empty_cache()
@@ -213,13 +209,13 @@ class PositionwiseFeedForward(nn.Module):
 
     def __init__(self, d_model, hidden, drop_prob=0.1):
         super(PositionwiseFeedForward, self).__init__()
-        self.linear1 = nn.Linear(d_model, hidden).to(device='cuda:0')
-        self.linear2 = nn.Linear(hidden, d_model).to(device='cuda:0')
-        self.relu = nn.ReLU().to(device='cuda:0')
-        self.dropout = nn.Dropout(p=drop_prob).to(device='cuda:0')
+        self.linear1 = nn.Linear(d_model, hidden).to(device)
+        self.linear2 = nn.Linear(hidden, d_model).to(device)
+        self.relu = nn.ReLU().to(device)
+        self.dropout = nn.Dropout(p=drop_prob).to(device)
 
     def forward(self, x):
-        x = self.linear1(x.to(device='cuda'))
+        x = self.linear1(x.to(device))
         #print(f"x after first linear layer: {x.size()}")
         x = self.relu(x)
         #print(f"x after activation: {x.size()}")
@@ -243,8 +239,6 @@ class EncoderLayer(nn.Module):
         self.i_th_encoder = i+1
 
     def forward(self, x, self_attention_mask):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
         print(f'------ ENCODER LAYER NUMBER {self.i_th_encoder}----------')
         residual_x = x.clone()
         print("ATTENTION 1",)
@@ -304,7 +298,7 @@ class Encoder(nn.Module):
 
     def forward(self, x, self_attention_mask):
         x = self.sentence_embedding.forward(x)
-        print('MEMORY USAGE AFTER ENCODING','\n',torch.cuda.memory_summary())
+        print('MEMORY USAGE AFTER ENCODING','\n')
         for i in range(self.num_layers):
             x = self.encoder(x, self_attention_mask)
             x = x.to(device = 'cpu')
@@ -326,9 +320,9 @@ class MultiHeadCrossAttention(nn.Module):
     def forward(self, x, y, mask=None):
         batch_size, sequence_length, d_model = x.size() # 30 x 200 x 512
         #print(f"x.size(): {x.size()}")
-        kv = self.kv_layer(x.to(device='cuda:0')) # 30 x 200 x 1024
+        kv = self.kv_layer(x.to(device)) # 30 x 200 x 1024
         #print(f"kv.size(): {kv.size()}")
-        q = self.q_layer(y.to(device='cuda:0')) # 30 x 200 x 512
+        q = self.q_layer(y.to(device)) # 30 x 200 x 512
         #print(f"q.size(): {q.size()}")
         kv = kv.reshape(batch_size, sequence_length, self.num_heads, 2 * self.head_dim)  # 30 x 200 x 8 x 128
         q = q.reshape(batch_size, sequence_length, self.num_heads, self.head_dim)  # 30 x 200 x 8 x 64
@@ -337,10 +331,10 @@ class MultiHeadCrossAttention(nn.Module):
         k, v = kv.chunk(2, dim=-1) # K: 30 x 8 x 200 x 64, v: 30 x 8 x 200 x 64
         values = scaled_dot_product(q, k, v, mask) #  30 x 8 x 200 x 64
         #print(f"values: {values.size()}, attention:{attention.size()}")
-        values = values.reshape(batch_size, sequence_length, d_model).to(device='cuda:0') #  30 x 200 x 512
+        values = values.reshape(batch_size, sequence_length, d_model).to(device) #  30 x 200 x 512
         values = values.to('cpu')
         torch.cuda.empty_cache()
-        out = self.linear_layer(values.to(device='cuda:0'))
+        out = self.linear_layer(values.to(device))
         out = out.to(device='cpu')  #  30 x 200 x 512
         torch.cuda.empty_cache()
         print(f"Cross attention completed size=: {out.size()}",'\n')
@@ -352,15 +346,15 @@ class DecoderLayer(nn.Module):
         super(DecoderLayer, self).__init__()
         self.self_attention = MultiHeadAttention(d_model=d_model, num_heads=num_heads)
         self.layer_norm1 = LayerNormalization(parameters_shape=d_model)
-        self.dropout1 = nn.Dropout(p=drop_prob).to(device='cuda:0')
+        self.dropout1 = nn.Dropout(p=drop_prob).to(device)
 
         self.cross_attention = MultiHeadCrossAttention(d_model=d_model, num_heads=num_heads)
         self.layer_norm2 = LayerNormalization(parameters_shape=d_model)
-        self.dropout2 = nn.Dropout(p=drop_prob).to(device='cuda:0')
+        self.dropout2 = nn.Dropout(p=drop_prob).to(device)
 
         self.ffn = PositionwiseFeedForward(d_model=d_model, hidden=ffn_hidden, drop_prob=drop_prob)
         self.layer_norm3 = LayerNormalization(parameters_shape=d_model)
-        self.dropout3 = nn.Dropout(p=drop_prob).to(device='cuda:0')
+        self.dropout3 = nn.Dropout(p=drop_prob).to(device)
         self.i_th_decoder = i+1
 
     def forward(self, x, y, self_attention_mask, cross_attention_mask):
@@ -370,8 +364,8 @@ class DecoderLayer(nn.Module):
         y = self.self_attention(y, mask=self_attention_mask) # 30 x 200 x 512
 
         print("DROP OUT 1")
-        y = self.dropout1(y.to(device='cuda:0')) # 30 x 200 x 512
-        y = y.to(device='cpu')
+        y = self.dropout1(y.to(device)) # 30 x 200 x 512
+        y = y.to(device)
         torch.cuda.empty_cache()
 
         print("ADD + LAYER NORMALIZATION 1")
@@ -382,7 +376,7 @@ class DecoderLayer(nn.Module):
         y = self.cross_attention(x, y, mask=cross_attention_mask) #30 x 200 x 512
 
         print("DROP OUT 2",'\n')  #30 x 200 x 512
-        y = self.dropout2(y.to(device='cuda:0'))
+        y = self.dropout2(y.to(device))
         y = y.to(device='cpu')
         torch.cuda.empty_cache()
 
@@ -394,7 +388,7 @@ class DecoderLayer(nn.Module):
         y = self.ffn(y) #30 x 200 x 512
 
         print("DROP OUT 3",'\n')
-        y = self.dropout3(y.to(device='cuda:0')) #30 x 200 x 512
+        y = self.dropout3(y.to(device)) #30 x 200 x 512
         y = y.to(device='cpu')
         torch.cuda.empty_cache()
 
@@ -455,12 +449,12 @@ class Transformer(nn.Module):
         print('ENCODER ACTIVATED')
         x = self.encoder(x, encoder_self_attention_mask)
         print('ENCODER COMPLETED')
-        print('MEMORY AFTER ENCODER ACTION','\n',(torch.cuda.memory_summary(abbreviated=True)))
+        print('MEMORY AFTER ENCODER ACTION','\n')
         print('DECODER ACTIVATED')
         out = self.decoder(x, y, decoder_self_attention_mask, decoder_cross_attention_mask)
         out = self.linear(out)
         print('DECODER COMPLETED')
-        print('MEMORY AFTER DECODER ACTION','\n',(torch.cuda.memory_summary(abbreviated=True)))
+        print('MEMORY AFTER DECODER ACTION','\n')
         return out
 
 
@@ -469,27 +463,28 @@ class Transformer(nn.Module):
     
 
 
-d_model = 128
-num_heads = 8
-drop_prob = 0.1
-batch_size = 30
-max_sequence_length = 104
-ffn_hidden = 2048
-num_layers_encoder = 1
-num_layers_decoder = 1
-transformer = Transformer(d_model = 128,
-                    ffn_hidden = 256,
-                    num_heads = 8,
-                    drop_prob = 0.1,
-                    max_sequence_length = 104,
-                    num_layers_encoder = 2,
-                    num_layers_decoder = 1,
-                    batch_size=1
-                    )
+# d_model = 128
+# num_heads = 8
+# drop_prob = 0.1
+# batch_size = 30
+# max_sequence_length = 104
+# ffn_hidden = 2048
+# num_layers_encoder = 1
+# num_layers_decoder = 1
+# transformer = Transformer(d_model = 128,
+#                     ffn_hidden = 256,
+#                     num_heads = 8,
+#                     drop_prob = 0.1,
+#                     max_sequence_length = 104,
+#                     num_layers_encoder = 2,
+#                     num_layers_decoder = 1,
+#                     batch_size=1
+#                     )
 
-x = ["I'm really in a bind","I'm really surprised"]
-y = ['Je suis vraiment dans le pétrin','Je suis très étonné.']
-mask = torch.full([max_sequence_length, max_sequence_length] , float('-inf'))
-mask = torch.triu(mask, diagonal=1) # Mask initialization for masked attention
-out = transformer(x,y,mask)
+# x = ["I'm really in a bind","I'm really surprised"]
+# y = ['Je suis vraiment dans le pétrin','Je suis très étonné.']
+# mask = torch.full([max_sequence_length, max_sequence_length] , float('-inf'))
+# mask = torch.triu(mask, diagonal=1) # Mask initialization for masked attention
+# # print(torch.cuda.memory_summary())
+# out = transformer(x,y,mask)
 

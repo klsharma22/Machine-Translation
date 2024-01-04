@@ -151,5 +151,5 @@ y = torch.randn( (batch_size, max_sequence_length, d_model) ) # output sentence 
 mask = torch.full([max_sequence_length, max_sequence_length] , float('-inf'))
 mask = torch.triu(mask, diagonal=1) # Mask initialization for masked attention
 
-#model = Transformer(d_model = 128,ffn_hidden = 2048,num_heads = 8,drop_prob = 0.1,num_layers_encoder = 5,num_layers_decoder = 5)
-#decoder_output = model(x,y,mask)
+model = Transformer(d_model = 128,ffn_hidden = 2048,num_heads = 8,drop_prob = 0.1,num_layers_encoder = 5,num_layers_decoder = 5)
+decoder_output = model(x,y,mask)
