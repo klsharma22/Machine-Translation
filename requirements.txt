@@ -1,0 +1,11 @@
+numpy
+torch
+transformers
+regex
+nltk
+tqdm
+scikit-learn
+pandas
+sentence-transformers
+pyarrow
+tensorflow 
