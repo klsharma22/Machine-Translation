@@ -1,0 +1,2 @@
+import transformers
+print(transformers.TOKENIZER_MAPPING)
